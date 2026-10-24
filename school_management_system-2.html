@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>School Management System</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#1e293b}
+header{background:#123c69;color:white;padding:24px;text-align:center}
+.container{max-width:1200px;margin:25px auto;padding:20px}
+.card{background:white;padding:22px;margin-bottom:22px;border-radius:12px;box-shadow:0 3px 12px #00000010}
+h2{margin-top:0;color:#123c69}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:15px}
+input,select{width:100%;padding:12px;margin-top:6px;border:1px solid #cbd5e1;border-radius:6px}
+label{font-weight:bold}
+button{padding:10px 15px;border:none;border-radius:6px;cursor:pointer;margin:4px}
+.primary{background:#123c69;color:white}
+.edit{background:#f59e0b;color:white}
+.delete{background:#dc2626;color:white}
+.search{max-width:400px;margin-bottom:15px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:850px}
+th,td{padding:12px;border-bottom:1px solid #e2e8f0;text-align:left}
+th{background:#e2e8f0}
+#message{margin:12px 0;font-weight:bold}
+@media(max-width:600px){.container{padding:10px}.card{padding:15px}}
+</style>
+</head>
+<body>
+<header><h1>School Management System</h1><p>Student Enrollment and Academic Records</p></header>
+<div class="container">
+<div class="card">
+<h2>Student Enrollment</h2>
+<div id="message" role="status" aria-live="polite"></div>
+<form id="studentForm">
+<input type="hidden" id="id">
+<div class="form-grid">
+<div><label for="name">Student Name</label><input id="name" required></div>
+<div><label for="age">Age</label><input type="number" id="age" min="3" max="25" required></div>
+<div><label for="gender">Gender</label><select id="gender" required><option value="">Select Gender</option><option>Male</option><option>Female</option><option>Other</option></select></div>
+<div><label for="className">Class</label><select id="className" required><option value="">Select Class</option><option>Class 1</option><option>Class 2</option><option>Class 3</option><option>Class 4</option><option>Class 5</option><option>Class 6</option><option>Class 7</option><option>Class 8</option><option>Class 9</option><option>Class 10</option><option>Class 11</option><option>Class 12</option></select></div>
+<div><label for="email">Email</label><input type="email" id="email" required></div>
+<div><label for="phone">Phone Number</label><input type="tel" id="phone" pattern="[0-9]{10}" maxlength="10" required></div>
+<div><label for="marks">Marks (%)</label><input type="number" id="marks" min="0" max="100" step="0.01" value="0" required></div>
+<div><label for="attendance">Attendance (%)</label><input type="number" id="attendance" min="0" max="100" step="0.01" value="0" required></div>
+</div>
+<br>
+<button type="submit" class="primary" id="submitButton">Enroll Student</button>
+<button type="button" onclick="resetForm()">Clear</button>
+</form>
+</div>
+<div class="card">
+<h2>Student Records</h2>
+<input class="search" id="search" placeholder="Search by name, ID or class..." aria-label="Search students" oninput="displayStudents()">
+<div class="table-wrap"><table>
+<thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Gender</th><th>Class</th><th>Email</th><th>Phone</th><th>Marks</th><th>Attendance</th><th>Actions</th></tr></thead>
+<tbody id="studentTable"></tbody>
+</table></div>
+</div>
+</div>
+<script>
+const API = "/api/students";
+let students = [];
+
+async function request(url, options = {}) {
+    const response = await fetch(url, {
+        ...options,
+        headers: {"Content-Type":"application/json", ...options.headers}
+    });
+    if (!response.ok) throw new Error("Request failed. Please try again.");
+    if (response.status === 204) return null;
+    return response.json();
+}
+
+async function loadStudents() {
+    try {
+        students = await request(API);
+        displayStudents();
+    } catch (error) {
+        showMessage("Unable to connect to the server. This page needs a backend API at /api/students.", true);
+    }
+}
+
+function showMessage(message, error = false) {
+    const element = document.getElementById("message");
+    element.textContent = message;
+    element.style.color = error ? "#dc2626" : "#15803d";
+}
+
+function displayStudents() {
+    const query = document.getElementById("search").value.toLowerCase();
+    const filtered = students.filter(s =>
+        String(s.id).includes(query) ||
+        String(s.name || "").toLowerCase().includes(query) ||
+        String(s.className || "").toLowerCase().includes(query)
+    );
+    const table = document.getElementById("studentTable");
+    table.replaceChildren();
+    filtered.forEach(s => {
+        const row = document.createElement("tr");
+        [s.id,s.name,s.age,s.gender,s.className,s.email,s.phone,s.marks+"%",s.attendance+"%"].forEach(value => {
+            const cell = document.createElement("td");
+            cell.textContent = value ?? "";
+            row.appendChild(cell);
+        });
+        const actions = document.createElement("td");
+        const editButton = document.createElement("button");
+        editButton.className = "edit";
+        editButton.textContent = "Edit";
+        editButton.onclick = () => editStudent(s.id);
+        const deleteButton = document.createElement("button");
+        deleteButton.className = "delete";
+        deleteButton.textContent = "Delete";
+        deleteButton.onclick = () => deleteStudent(s.id);
+        actions.append(editButton, deleteButton);
+        row.appendChild(actions);
+        table.appendChild(row);
+    });
+}
+
+document.getElementById("studentForm").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    const id = document.getElementById("id").value;
+    const student = {
+        name:document.getElementById("name").value.trim(),
+        age:Number(document.getElementById("age").value),
+        gender:document.getElementById("gender").value,
+        className:document.getElementById("className").value,
+        email:document.getElementById("email").value.trim(),
+        phone:document.getElementById("phone").value,
+        marks:Number(document.getElementById("marks").value),
+        attendance:Number(document.getElementById("attendance").value)
+    };
+    if (!student.name || !student.email || !student.phone) {
+        showMessage("Please complete all required fields.", true);
+        return;
+    }
+    try {
+        if (id) {
+            await request(`${API}/${id}`, {method:"PUT", body:JSON.stringify(student)});
+            showMessage("Student record updated successfully.");
+        } else {
+            await request(API, {method:"POST", body:JSON.stringify(student)});
+            showMessage("Student enrolled successfully.");
+        }
+        resetForm();
+        await loadStudents();
+    } catch (error) {
+        showMessage(error.message, true);
+    }
+});
+
+function editStudent(id) {
+    const s = students.find(student => student.id === id);
+    if (!s) return;
+    document.getElementById("id").value = s.id;
+    document.getElementById("name").value = s.name;
+    document.getElementById("age").value = s.age;
+    document.getElementById("gender").value = s.gender;
+    document.getElementById("className").value = s.className;
+    document.getElementById("email").value = s.email;
+    document.getElementById("phone").value = s.phone;
+    document.getElementById("marks").value = s.marks;
+    document.getElementById("attendance").value = s.attendance;
+    document.getElementById("submitButton").textContent = "Update Student";
+    window.scrollTo({top:0, behavior:"smooth"});
+}
+
+async function deleteStudent(id) {
+    if (!confirm("Are you sure you want to delete this student?")) return;
+    try {
+        await request(`${API}/${id}`, {method:"DELETE"});
+        showMessage("Student record deleted successfully.");
+        await loadStudents();
+    } catch (error) {
+        showMessage(error.message, true);
+    }
+}
+
+function resetForm() {
+    document.getElementById("studentForm").reset();
+    document.getElementById("id").value = "";
+    document.getElementById("marks").value = 0;
+    document.getElementById("attendance").value = 0;
+    document.getElementById("submitButton").textContent = "Enroll Student";
+}
+
+loadStudents();
+</script>
+</body>
+</html>
